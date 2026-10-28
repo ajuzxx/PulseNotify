@@ -1,0 +1,29 @@
+
+services:
+  db:
+    image: postgres:16
+    container_name: pulsenotify_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pulsenotify
+      POSTGRES_USER: pulseuser
+      POSTGRES_PASSWORD: pulse_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulseuser -d pulsenotify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulsenotify_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

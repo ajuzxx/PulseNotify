@@ -1,0 +1,700 @@
+{
+    "info": {
+        "_postman_id": "8f0e1c92-c41f-4240-88ca-9ce3913a6891",
+        "name": "PulseNotify API Test Collection",
+        "description": "Postman collection covering all 12 test scenarios for the PulseNotify Flight Price Notification System, with automated tests and dynamic variable chaining.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://127.0.0.1:9000",
+            "type": "string"
+        },
+        {
+            "key": "current_username",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "current_password",
+            "value": "SecurePass123!",
+            "type": "string"
+        },
+        {
+            "key": "regular_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "admin_username",
+            "value": "admin",
+            "type": "string"
+        },
+        {
+            "key": "admin_password",
+            "value": "Admin1234!",
+            "type": "string"
+        },
+        {
+            "key": "admin_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "alert_id",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "1. Register a new user",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "// Generate unique username to allow repeated test runs without conflicts",
+                            "var uniqueSuffix = Date.now();",
+                            "var username = 'traveler_' + uniqueSuffix;",
+                            "pm.collectionVariables.set('current_username', username);",
+                            "pm.collectionVariables.set('current_password', 'SecurePass123!');"
+                        ]
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 201 Created', function () {",
+                            "    pm.response.to.have.status(201);",
+                            "});",
+                            "",
+                            "pm.test('Response returns JWT access token and user info', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('access');",
+                            "    pm.expect(jsonData.access).to.be.a('string').that.is.not.empty;",
+                            "    pm.expect(jsonData).to.have.property('username');",
+                            "    pm.collectionVariables.set('regular_token', jsonData.access);",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"username\": \"{{current_username}}\",\n    \"password\": \"{{current_password}}\",\n    \"email\": \"{{current_username}}@example.com\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/auth/register/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "register",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "2. Register with duplicate username",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 400 Bad Request', function () {",
+                            "    pm.response.to.have.status(400);",
+                            "});",
+                            "",
+                            "pm.test('Response contains duplicate username error', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('username');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"username\": \"{{current_username}}\",\n    \"password\": \"{{current_password}}\",\n    \"email\": \"duplicate_{{current_username}}@example.com\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/auth/register/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "register",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "3. Login with valid credentials",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 200 OK', function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "pm.test('Response returns valid JWT access token', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('access');",
+                            "    pm.expect(jsonData.access).to.be.a('string').that.is.not.empty;",
+                            "    pm.collectionVariables.set('regular_token', jsonData.access);",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"username\": \"{{current_username}}\",\n    \"password\": \"{{current_password}}\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/auth/login/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "login",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "4. Login with wrong password",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 401 Unauthorized', function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "",
+                            "pm.test('Response indicates invalid credentials', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('detail');",
+                            "    pm.expect(jsonData.detail).to.include('Invalid username or password');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"username\": \"{{current_username}}\",\n    \"password\": \"WrongPassword999!\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/auth/login/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "login",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "5. Create a price alert - no token",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 401 Unauthorized', function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "",
+                            "pm.test('Error indicates authentication credentials not provided', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('detail');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"origin\": \"DEL\",\n    \"destination\": \"BOM\",\n    \"threshold_price\": \"4500.00\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/alerts/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "alerts",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "6. Create a price alert - valid token",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 201 Created', function () {",
+                            "    pm.response.to.have.status(201);",
+                            "});",
+                            "",
+                            "pm.test('Price alert created with active status and alert id', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('id');",
+                            "    pm.expect(jsonData.status).to.eql('active');",
+                            "    pm.expect(jsonData.origin).to.eql('DEL');",
+                            "    pm.expect(jsonData.destination).to.eql('BOM');",
+                            "    pm.collectionVariables.set('alert_id', jsonData.id.toString());",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{regular_token}}",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"origin\": \"DEL\",\n    \"destination\": \"BOM\",\n    \"threshold_price\": \"4500.00\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/alerts/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "alerts",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "7. List own alerts",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 200 OK', function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "pm.test('Response is an array of alerts', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.be.an('array');",
+                            "    pm.expect(jsonData.length).to.be.above(0);",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{regular_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/alerts/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "alerts",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "8. Deactivate an alert",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 200 OK', function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "pm.test('Alert status changed to inactive', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('status');",
+                            "    pm.expect(jsonData.status).to.eql('inactive');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "DELETE",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{regular_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/alerts/{{alert_id}}/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "alerts",
+                        "{{alert_id}}",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "9. Mock price feed - valid route",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 200 OK', function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "pm.test('Response contains DEL-BOM route and price', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.route).to.eql('DEL-BOM');",
+                            "    pm.expect(jsonData).to.have.property('price');",
+                            "    pm.expect(jsonData.price).to.be.a('number');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{base_url}}/api/flights/price/?route=DEL-BOM",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "flights",
+                        "price",
+                        ""
+                    ],
+                    "query": [
+                        {
+                            "key": "route",
+                            "value": "DEL-BOM"
+                        }
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "10. Mock price feed - invalid route",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 404 Not Found', function () {",
+                            "    pm.response.to.have.status(404);",
+                            "});",
+                            "",
+                            "pm.test('Response indicates route not found', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('error');",
+                            "    pm.expect(jsonData.error).to.include('Route not found');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{base_url}}/api/flights/price/?route=XYZ-ABC",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "flights",
+                        "price",
+                        ""
+                    ],
+                    "query": [
+                        {
+                            "key": "route",
+                            "value": "XYZ-ABC"
+                        }
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "11. Admin summary - regular user token",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 403 Forbidden', function () {",
+                            "    pm.response.to.have.status(403);",
+                            "});",
+                            "",
+                            "pm.test('Access denied for regular user', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('detail');",
+                            "    pm.expect(jsonData.detail).to.include('Admin access required');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{regular_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/admin/summary/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "admin",
+                        "summary",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "12. Admin summary - admin token",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "// Log in as admin and obtain admin JWT token",
+                            "var baseUrl = pm.collectionVariables.get('base_url') || 'http://127.0.0.1:9000';",
+                            "var adminUsername = pm.collectionVariables.get('admin_username') || 'admin';",
+                            "var adminPassword = pm.collectionVariables.get('admin_password') || 'Admin1234!';",
+                            "",
+                            "pm.sendRequest({",
+                            "    url: baseUrl + '/api/auth/login/',",
+                            "    method: 'POST',",
+                            "    header: { 'Content-Type': 'application/json' },",
+                            "    body: {",
+                            "        mode: 'raw',",
+                            "        raw: JSON.stringify({",
+                            "            username: adminUsername,",
+                            "            password: adminPassword",
+                            "        })",
+                            "    }",
+                            "}, function (err, res) {",
+                            "    if (!err && res.code === 200) {",
+                            "        var resData = res.json();",
+                            "        pm.collectionVariables.set('admin_token', resData.access);",
+                            "    }",
+                            "});"
+                        ]
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('Status code is 200 OK', function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "pm.test('Response returns dashboard aggregates and top routes', function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData).to.have.property('total_alerts');",
+                            "    pm.expect(jsonData).to.have.property('active_alerts');",
+                            "    pm.expect(jsonData).to.have.property('triggered_alerts');",
+                            "    pm.expect(jsonData).to.have.property('total_notifications');",
+                            "    pm.expect(jsonData).to.have.property('top_routes');",
+                            "    pm.expect(jsonData.top_routes).to.be.an('array');",
+                            "});"
+                        ]
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/admin/summary/",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "admin",
+                        "summary",
+                        ""
+                    ]
+                }
+            },
+            "response": []
+        }
+    ]
+}
