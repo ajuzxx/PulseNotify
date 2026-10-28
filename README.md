@@ -6,32 +6,103 @@ The system allows users to set price alerts for flight routes. A background peri
 
 ---
 
-## 🏗️ Architecture & Data Flow
+## 🏗️ System Architecture
 
 ```mermaid
-graph TD
-    User([Client / Postman]) -->|HTTP REST API| Django[Django REST API - Port 9000]
-    Django -->|JWT Auth / CRUD Alerts| Postgres[(PostgreSQL DB)]
-    
-    subgraph Celery & Async Tasks
-        Beat[Celery Beat Scheduler] -->|Every 60s: check_prices| RedisBroker[(Redis Broker)]
-        Worker[Celery Worker] -->|Fetch Tasks| RedisBroker
-        Worker -->|GET /api/flights/price/| MockAPI[Flight Price Feed]
-        Worker -->|If price <= threshold: send_notification| Postgres
+flowchart TB
+    subgraph CLIENT["👤 Client Layer"]
+        Postman["Postman / Browser / cURL"]
     end
+
+    subgraph DJANGO["🌐 Django REST API  —  Port 9000"]
+        direction TB
+        Auth["🔐 Auth Module\n/api/auth/register/\n/api/auth/login/"]
+        Alerts["📋 Alert CRUD\n/api/alerts/\n/api/alerts/&lt;id&gt;/"]
+        Flights["✈️ Flight Price Feed\n/api/flights/price/?route="]
+        Admin["🛡️ Admin Dashboard\n/api/admin/summary/"]
+        JWT["SimpleJWT\nToken Verification"]
+        Perms["IsAdminUser\nPermission Guard"]
+    end
+
+    subgraph DATA["🗄️ PostgreSQL Database"]
+        direction LR
+        UserProfile[("UserProfile\n— user (FK)\n— role: admin | user")]
+        PriceAlert[("PriceAlert\n— origin, destination\n— threshold_price\n— status: active | triggered | inactive")]
+        NotifLog[("NotificationLog\n— alert (FK)\n— triggered_price\n— message\n— notified_at")]
+    end
+
+    subgraph ASYNC["⚙️ Celery Async Pipeline"]
+        direction LR
+        Beat["🕐 Celery Beat\nScheduler\n(every 60s)"]
+        Redis[("Redis\nMessage Broker\nPort 6379")]
+        Worker["🔧 Celery Worker"]
+    end
+
+    subgraph TASKS["📦 Task Execution Detail"]
+        direction TB
+        T1["1️⃣ check_prices\nQuery all ACTIVE alerts\nFetch price per route"]
+        T2{"price ≤\nthreshold?"}
+        T3["2️⃣ send_notification\nLog to NotificationLog\nMark alert TRIGGERED"]
+        Skip["Skip — no action"]
+    end
+
+    %% Client to Django
+    Postman -->|"HTTP Request\n+ Bearer JWT Token"| Auth
+    Postman -->|"HTTP Request\n+ Bearer JWT Token"| Alerts
+    Postman -->|"HTTP GET\n(no auth required)"| Flights
+    Postman -->|"HTTP Request\n+ Admin JWT Token"| Admin
+
+    %% Django internal auth flow
+    Auth -->|"Issue / Validate Token"| JWT
+    Alerts -->|"Verify Token"| JWT
+    Admin -->|"Verify Token"| JWT
+    Admin -->|"Check role=admin"| Perms
+
+    %% Django to Database
+    Auth -->|"Create User +\nauto-create UserProfile (signal)"| UserProfile
+    Alerts -->|"Create / List / Deactivate"| PriceAlert
+    Admin -->|"Aggregate stats:\nCount, Q filters"| PriceAlert
+    Admin -->|"Count notifications"| NotifLog
+
+    %% Celery pipeline
+    Beat -->|"Dispatch\ncheck_prices task"| Redis
+    Redis -->|"Deliver task"| Worker
+    Worker --> T1
+    T1 -->|"GET /api/flights/price/"| Flights
+    T1 -->|"Read ACTIVE alerts"| PriceAlert
+    T1 --> T2
+    T2 -->|"Yes"| T3
+    T2 -->|"No"| Skip
+    T3 -->|"Insert row"| NotifLog
+    T3 -->|"Update status → TRIGGERED"| PriceAlert
+
+    %% Styling
+    style CLIENT fill:#e8f4fd,stroke:#2196F3,stroke-width:2px,color:#000
+    style DJANGO fill:#fff3e0,stroke:#FF9800,stroke-width:2px,color:#000
+    style DATA fill:#e8f5e9,stroke:#4CAF50,stroke-width:2px,color:#000
+    style ASYNC fill:#fce4ec,stroke:#E91E63,stroke-width:2px,color:#000
+    style TASKS fill:#f3e5f5,stroke:#9C27B0,stroke-width:2px,color:#000
+    style T2 fill:#fff9c4,stroke:#F9A825,stroke-width:2px,color:#000
 ```
 
-### Flow Breakdown:
-1. **API Layer (`/api/`)**: Handled by Django REST Framework with JWT authentication (`rest_framework_simplejwt`).
-2. **Alert Management**: Users create and track custom route alerts (`origin`, `destination`, `threshold_price`).
-3. **Periodic Scheduling (Celery Beat)**: Dispatches `pulse.tasks.check_prices` every 60 seconds into Redis.
-4. **Task Execution (Celery Worker)**:
-   - Polls active alerts from PostgreSQL.
-   - Calls the flight price API for each distinct route.
-   - Evaluates whether `current_price <= alert.threshold_price`.
-   - Asynchronously dispatches `send_notification` when triggered.
-   - Marks the alert as `TRIGGERED` and records an immutable log in `pulse_notificationlog`.
-5. **Role-Based Access Control**: Admins have role `admin` in `UserProfile` granting exclusive access to `/api/admin/summary/`.
+### How It Works — Step by Step:
+
+1. **User Registration & Login** — Client sends credentials to `/api/auth/register/` or `/api/auth/login/`. Django validates them, creates a `UserProfile` (via a `post_save` signal), and returns a **JWT access token**.
+
+2. **Creating Price Alerts** — Authenticated users `POST` to `/api/alerts/` with a route (`origin`→`destination`) and a `threshold_price`. The alert is stored as `ACTIVE` in PostgreSQL.
+
+3. **Background Price Monitoring (Celery Beat → Worker)** — Every **60 seconds**, Celery Beat pushes a `check_prices` task into the **Redis** message broker. A Celery Worker picks it up and:
+   - Queries all `ACTIVE` alerts from the database.
+   - Groups them by route and fetches the current price from the **mock flight price feed** (`/api/flights/price/`).
+   - Compares `current_price` against each alert's `threshold_price`.
+
+4. **Triggering Notifications** — When `price ≤ threshold`, the worker dispatches `send_notification`, which:
+   - Creates an immutable record in `NotificationLog` with the triggered price and message.
+   - Updates the alert's status from `ACTIVE` → `TRIGGERED`.
+
+5. **Admin Dashboard** — Users with `role=admin` in their `UserProfile` can call `/api/admin/summary/` to see aggregate statistics (total/active/triggered alerts, notification count, top 5 monitored routes).
+
+6. **Alert Deactivation** — Users can manually `DELETE /api/alerts/<id>/` to set an alert to `INACTIVE`, removing it from future price checks.
 
 ---
 
